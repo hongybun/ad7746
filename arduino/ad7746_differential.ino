@@ -25,61 +25,61 @@
 #define VOLT_GAIN_L     0x12
 #define RESET           0xBF
 
-// Setup for continuous differential measurements
-
+// Setup for continuous single-ended measurements
 void setup()
 {
-    
-
+    // Initialize serial port and communications
     Serial.begin(9600);
     Wire.begin();
-    Wire.beginTransmission(I2C_ADDRESS);
-    Wire.write(RESET);  // Reset the device on startup
-    Wire.endTransmission();
-    delay(1);                       // Delay needed for AD7746 to reset all of its settings (200 us)
 
-    Serial.println("Initializing"); // Announce startup
+    // Reset the device on startup
+    Wire.beginTransmission(I2C_ADDRESS);
+    Wire.write(RESET); 
+    Wire.endTransmission();
+    delay(1); // Delay 1 ms for AD7746 to reset all of its settings
+
+    Serial.println("Initializing differential measurement"); // Announce startup
 
     // Setup Registers
-    writeRegister(CONFIGURATION, 0xA1); // Continuous conversion, no temperature, CAPDAC A enabled
-    writeRegister(CAP_SETUP, 0xA0);     // Enable capacitive channel in differential mode
-    writeRegister(EXC_SETUP, 0x09);     // Enable excitation A, with voltage level at +- VDD/4
-
+    writeRegister(CAP_SETUP, 0xA0); // Enable capacitive channel in differential mode
+    writeRegister(EXC_SETUP, 0x09); // Enable excitation A with voltage level at +- VDD/4
+    writeRegister(CONFIGURATION, 0xA1); // Continuous conversion enabled
     
-    // Set CAPDAC offset
-    float coarseOffset = 0;                     // 0 pF offset - change this as needed
+    // Set CAPDAC offset. CAPDACs are uncalibrated and can vary by +-20% between AD7746 devices
+    float coarseOffset = 0; // Adjust negative offset in steps of 0.125
     byte capdac = (byte)(coarseOffset / 0.125); 
-    writeRegister(CAP_DAC_A, capdac | 0x80);    // Write CAPDAC value to CAPDAC A and enable it
-    writeRegister(CAP_DAC_B, 0x00);             // Disable CAPDAC B
-    
+    //writeRegister(CAP_DAC_A, capdac | 0x80); // Write CAPDAC value to CAPDAC A and enable it
+    writeRegister(CAP_DAC_A, capdac | 0x00); // Disable CAPDAC A
+    writeRegister(CAP_DAC_B, 0x00); // Disable CAPDAC B
 
-    // Set fine capacitance offset
+    // Set fine capacitance offset. Currently changing values unexpectedly, can't be bothered to figure out why. Low priority.
     /*
-    //long capRaw = readCapacitanceRaw();                       // Convert raw code to pF (based on 24-bit scale)
-    //float fineOffset = (float)capRaw / 16777216.0 * 8.192;    // Calculate uncalibrated capacitance
+    //long capRaw = readCapacitanceRaw(); // Convert raw code to pF (based on 24-bit scale)
+    //float fineOffset = (float)capRaw / 16777216.0 * 8.192; // Calculate uncalibrated capacitance
     float fineOffset = -0.1;
     int16_t offsetRaw = (int16_t)(-fineOffset * 65536.0);
     writeRegister(CAP_OFFSET_H, (offsetRaw >> 8) & 0xFF);
     writeRegister(CAP_OFFSET_L, offsetRaw & 0xFF);
     */
 
-    delay(100); // Let settings take effect and wait for environment to stabilize
+    delay(100); // Let settings take effect and wait for environment to stabilize for 100 ms
 }
 
 unsigned long startTime = millis();
 
+// Main data collection loop
 void loop() {
     if (dataReady()) {
         long capRaw = readCapacitanceRaw(); // Convert raw code to pF (based on 24-bit scale)
         float capPF = (float)capRaw / 16777216.0 * 8.192 - 4.096; // Calculate uncalibrated capacitance
         Serial.print("Time: ");
         Serial.print((millis() - startTime) / 1000.0);
-        Serial.print(" Capacitance: ");
-        Serial.print(capPF, 4);
+        Serial.print(" seconds  ");
+        Serial.print("Capacitance: ");
+        Serial.print(capPF, 6);
         Serial.println(" pF");
     }
-
-    delay(200);
+    delay(250); // Sample period in ms
 }
 
 // Write one byte to a register
@@ -100,12 +100,12 @@ bool dataReady() {
     return (status & 0x80) == 0;  // Bit 7 = RDY (0 when data ready)
 }
 
-// Read 24-bit raw capacitance
+// Read 24-bit raw capacitance. The 24 bits are separated into 3 8-bit registers.
 long readCapacitanceRaw() {
     Wire.beginTransmission(I2C_ADDRESS);
-    Wire.write(CAP_DATA_H);
+    Wire.write(CAP_DATA_H); // Double check this
     Wire.endTransmission(false);
-    Wire.requestFrom(I2C_ADDRESS, 3);
+    Wire.requestFrom(I2C_ADDRESS, 3); // Double check this
 
     uint32_t high = Wire.read();
     uint32_t mid  = Wire.read();

@@ -1,7 +1,6 @@
 #include <Wire.h>
 
-//AD7746 definitions
-#define I2C_ADDRESS     0x48 //AD7746 default I2C address
+#define I2C_ADDRESS     0x48 // AD7746 default I2C address
 
 // AD7746 Register Map
 #define STATUS          0x00
@@ -38,15 +37,15 @@ void setup()
     Wire.endTransmission();
     delay(1); // Delay 1 ms for AD7746 to reset all of its settings
 
-    Serial.println("Initializing differential measurement"); // Announce startup
+    Serial.println("Initializing single-ended measurement"); // Announce startup
 
     // Setup Registers
-    writeRegister(CAP_SETUP, 0xA0); // Enable capacitive channel in differential mode
+    writeRegister(CAP_SETUP, 0x80); // Enable capacitive channel in single-ended mode
     writeRegister(EXC_SETUP, 0x09); // Enable excitation A with voltage level at +- VDD/4
     writeRegister(CONFIGURATION, 0xA1); // Continuous conversion, no temperature, CAPDAC A enabled
     
     // Set CAPDAC offset. CAPDACs are uncalibrated and can vary by +-20% between AD7746 devices
-    float coarseOffset = 0; // Adjust negative offset in steps of 0.125
+    float coarseOffset = 4; // Adjust negative offset in steps of 0.125
     byte capdac = (byte)(coarseOffset / 0.125); 
     writeRegister(CAP_DAC_A, capdac | 0x80); // Write CAPDAC value to CAPDAC A and enable it
     writeRegister(CAP_DAC_B, 0x00); // Disable CAPDAC B
@@ -70,12 +69,12 @@ unsigned long startTime = millis();
 void loop() {
     if (dataReady()) {
         long capRaw = readCapacitanceRaw(); // Convert raw code to pF (based on 24-bit scale)
-        float capPF = (float)capRaw / 16777216.0 * 8.192 - 4.096; // Calculate uncalibrated capacitance
+        float capPF = (float)capRaw / 16777216.0 * 8.192; // Calculate uncalibrated capacitance
         Serial.print("Time: ");
         Serial.print((millis() - startTime) / 1000.0);
         Serial.print(" seconds  ");
         Serial.print("Capacitance: ");
-        Serial.print(capPF, 4);
+        Serial.print(capPF, 6);
         Serial.println(" pF");
     }
     delay(250); // Sample period in ms

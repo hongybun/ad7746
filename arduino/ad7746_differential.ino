@@ -25,7 +25,7 @@
 #define VOLT_GAIN_L     0x12
 #define RESET           0xBF
 
-// Setup for continuous single-ended measurements
+// Setup for continuous differential measurements
 void setup()
 {
     // Initialize serial port and communications
